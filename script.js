@@ -44,40 +44,85 @@ window.addEventListener("DOMContentLoaded", () => {
   if (typingEl) setTimeout(typeLoop, 700);
 
   const mobileNav = document.querySelector(".mobile-nav");
+  const portraitWrap = document.querySelector(".portrait-wrap");
+
+  if (portraitWrap && window.matchMedia("(hover: none), (pointer: coarse), (any-pointer: coarse)").matches) {
+    portraitWrap.addEventListener("click", () => {
+      portraitWrap.classList.toggle("is-alternate");
+    });
+  }
+
   mobileNav?.querySelectorAll("a").forEach((link) => {
     link.addEventListener("click", () => {
       mobileNav.open = false;
     });
   });
 
-  const indiaTimeEl = document.getElementById("india-time");
-  const utcTimeEl = document.getElementById("utc-time");
+  const sectionLinks = document.querySelectorAll('.nav a[href^="#"], .mobile-nav a[href^="#"]');
+  const observedSections = [...document.querySelectorAll(".panel[id]")];
 
-  const timeFormatter = (timeZone, locale) => new Intl.DateTimeFormat(locale, {
-    timeZone,
+  function setActiveSection(sectionId) {
+    sectionLinks.forEach((link) => {
+      if (link.getAttribute("href") === `#${sectionId}`) {
+        link.setAttribute("aria-current", "location");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+  }
+
+  if ("IntersectionObserver" in window && observedSections.length) {
+    const sectionObserver = new IntersectionObserver((entries) => {
+      const activeSection = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+      if (activeSection) setActiveSection(activeSection.target.id);
+    }, {
+      rootMargin: "-40% 0px -40% 0px",
+      threshold: 0,
+    });
+
+    observedSections.forEach((section) => sectionObserver.observe(section));
+  }
+
+  let previousScrollY = window.scrollY;
+  window.addEventListener("scroll", () => {
+    const currentScrollY = window.scrollY;
+
+    if (currentScrollY !== previousScrollY) {
+      document.documentElement.dataset.scrollDirection = currentScrollY < previousScrollY ? "up" : "down";
+      previousScrollY = currentScrollY;
+    }
+
+    if (currentScrollY < 100) {
+      sectionLinks.forEach((link) => link.removeAttribute("aria-current"));
+    }
+  }, { passive: true });
+
+  const indiaTimeEl = document.getElementById("india-time");
+  const indiaFormatter = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
     hour12: false,
   });
-  const indiaFormatter = timeFormatter("Asia/Kolkata", "en-IN");
-  const utcFormatter = timeFormatter("UTC", "en-GB");
   let clockTimeout;
 
-  function updateClocks() {
+  function updateClock() {
     const now = new Date();
     if (indiaTimeEl) indiaTimeEl.textContent = indiaFormatter.format(now);
-    if (utcTimeEl) utcTimeEl.textContent = utcFormatter.format(now);
 
     // Align each update to the next whole second and always derive from the
     // current device clock, so delays or background-tab throttling don't drift.
     clearTimeout(clockTimeout);
-    clockTimeout = setTimeout(updateClocks, 1000 - (Date.now() % 1000));
+    clockTimeout = setTimeout(updateClock, 1000 - (Date.now() % 1000));
   }
 
-  updateClocks();
+  updateClock();
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) updateClocks();
+    if (!document.hidden) updateClock();
   });
-  window.addEventListener("pageshow", updateClocks);
+  window.addEventListener("pageshow", updateClock);
 });
